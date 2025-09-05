@@ -9,6 +9,10 @@ rust_server/Cargo.lock
 rust_server/*.log
 rust_server/nohup.out
 
+# Forth
+forth_server/*.log
+forth_server/nohup.out
+
 # IDE
 .vscode/
 .idea/
