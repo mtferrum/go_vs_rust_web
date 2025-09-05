@@ -13,6 +13,10 @@ rust_server/nohup.out
 forth_server/*.log
 forth_server/nohup.out
 
+# Prolog
+prolog_server/*.log
+prolog_server/nohup.out
+
 # IDE
 .vscode/
 .idea/
