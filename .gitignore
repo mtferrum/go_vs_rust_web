@@ -1,0 +1,23 @@
+# Go
+go_server/go_server
+go_server/*.log
+go_server/nohup.out
+
+# Rust
+rust_server/target/
+rust_server/Cargo.lock
+rust_server/*.log
+rust_server/nohup.out
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
