@@ -1,0 +1,459 @@
+// Веб-сервер на языке Ladder
+// Демонстрационная реализация для сравнения с Go, Rust, Forth и Prolog
+// Ladder - язык программирования на основе релейной логики
+
+// Константы и переменные
+VAR
+    SERVER_PORT : INT := 8084;
+    BUFFER_SIZE : INT := 1024;
+    MAX_USERS : INT := 3;
+    
+    // Структура пользователя
+    USER_STRUCT : STRUCT
+        id : INT;
+        name : STRING(50);
+        email : STRING(100);
+        age : INT;
+        created_at : STRING(30);
+    END_STRUCT;
+    
+    // Массив пользователей
+    users : ARRAY[1..MAX_USERS] OF USER_STRUCT;
+    user_count : INT := 3;
+    
+    // HTTP переменные
+    http_buffer : STRING(BUFFER_SIZE);
+    response_buffer : STRING(4096);
+    server_socket : INT;
+    client_socket : INT;
+    
+    // Флаги состояния
+    server_running : BOOL := FALSE;
+    request_received : BOOL := FALSE;
+    response_ready : BOOL := FALSE;
+    
+    // Счетчики
+    i : INT;
+    j : INT;
+    temp_id : INT;
+    temp_string : STRING(100);
+    
+    // JSON переменные
+    json_response : STRING(2000);
+    json_user : STRING(500);
+    
+END_VAR
+
+// Инициализация пользователей
+PROGRAM INIT_USERS
+    // Пользователь 1
+    users[1].id := 1;
+    users[1].name := 'Иван Иванов';
+    users[1].email := 'ivan@example.com';
+    users[1].age := 25;
+    users[1].created_at := '2024-01-01T10:00:00Z';
+    
+    // Пользователь 2
+    users[2].id := 2;
+    users[2].name := 'Мария Петрова';
+    users[2].email := 'maria@example.com';
+    users[2].age := 30;
+    users[2].created_at := '2024-01-02T11:00:00Z';
+    
+    // Пользователь 3
+    users[3].id := 3;
+    users[3].name := 'Алексей Сидоров';
+    users[3].email := 'alex@example.com';
+    users[3].age := 28;
+    users[3].created_at := '2024-01-03T12:00:00Z';
+    
+    user_count := 3;
+END_PROGRAM
+
+// Функция создания JSON ответа
+FUNCTION CREATE_JSON_RESPONSE : STRING
+VAR_INPUT
+    success : BOOL;
+    message : STRING(200);
+    data : STRING(1000);
+END_VAR
+VAR
+    result : STRING(2000);
+END_VAR
+
+    result := '{';
+    
+    IF success THEN
+        result := result + '"success":true,';
+    ELSE
+        result := result + '"success":false,';
+    END_IF;
+    
+    result := result + '"message":"' + message + '",';
+    
+    IF data <> '' THEN
+        result := result + '"data":' + data;
+    ELSE
+        result := result + '"data":null';
+    END_IF;
+    
+    result := result + '}';
+    
+    CREATE_JSON_RESPONSE := result;
+END_FUNCTION
+
+// Функция создания JSON для пользователя
+FUNCTION USER_TO_JSON : STRING
+VAR_INPUT
+    user_id : INT;
+END_VAR
+VAR
+    result : STRING(500);
+    user : USER_STRUCT;
+END_VAR
+
+    IF user_id >= 1 AND user_id <= user_count THEN
+        user := users[user_id];
+        result := '{';
+        result := result + '"id":' + INT_TO_STRING(user.id) + ',';
+        result := result + '"name":"' + user.name + '",';
+        result := result + '"email":"' + user.email + '",';
+        result := result + '"age":' + INT_TO_STRING(user.age) + ',';
+        result := result + '"created_at":"' + user.created_at + '"';
+        result := result + '}';
+    ELSE
+        result := 'null';
+    END_IF;
+    
+    USER_TO_JSON := result;
+END_FUNCTION
+
+// Обработчик главной страницы
+FUNCTION HOME_RESPONSE : STRING
+VAR
+    result : STRING(2000);
+    endpoints : STRING(1000);
+END_VAR
+
+    endpoints := '[';
+    endpoints := endpoints + '"GET / - Главная страница",';
+    endpoints := endpoints + '"GET /users - Получить всех пользователей",';
+    endpoints := endpoints + '"GET /users/{id} - Получить пользователя по ID",';
+    endpoints := endpoints + '"POST /users - Создать нового пользователя",';
+    endpoints := endpoints + '"PUT /users/{id} - Обновить пользователя",';
+    endpoints := endpoints + '"DELETE /users/{id} - Удалить пользователя"';
+    endpoints := endpoints + ']';
+    
+    result := '{';
+    result := result + '"version":"1.0.0",';
+    result := result + '"endpoints":' + endpoints;
+    result := result + '}';
+    
+    HOME_RESPONSE := CREATE_JSON_RESPONSE(TRUE, 'Добро пожаловать в API веб-сервера на Ladder!', result);
+END_FUNCTION
+
+// Обработчик получения всех пользователей
+FUNCTION GET_USERS_RESPONSE : STRING
+VAR
+    result : STRING(2000);
+    users_json : STRING(1500);
+    i : INT;
+END_VAR
+
+    users_json := '[';
+    
+    FOR i := 1 TO user_count DO
+        IF i > 1 THEN
+            users_json := users_json + ',';
+        END_IF;
+        users_json := users_json + USER_TO_JSON(i);
+    END_FOR;
+    
+    users_json := users_json + ']';
+    
+    GET_USERS_RESPONSE := CREATE_JSON_RESPONSE(TRUE, 'Пользователи успешно получены', users_json);
+END_FUNCTION
+
+// Обработчик получения пользователя по ID
+FUNCTION GET_USER_RESPONSE : STRING
+VAR_INPUT
+    user_id : INT;
+END_VAR
+VAR
+    result : STRING(2000);
+    user_json : STRING(500);
+END_VAR
+
+    IF user_id >= 1 AND user_id <= user_count THEN
+        user_json := USER_TO_JSON(user_id);
+        result := CREATE_JSON_RESPONSE(TRUE, 'Пользователь найден', user_json);
+    ELSE
+        result := CREATE_JSON_RESPONSE(FALSE, 'Пользователь не найден', '');
+    END_IF;
+    
+    GET_USER_RESPONSE := result;
+END_FUNCTION
+
+// Обработчик создания пользователя
+FUNCTION CREATE_USER_RESPONSE : STRING
+VAR_INPUT
+    name : STRING(50);
+    email : STRING(100);
+    age : INT;
+END_VAR
+VAR
+    result : STRING(2000);
+    new_user_json : STRING(500);
+    new_id : INT;
+END_VAR
+
+    IF user_count < MAX_USERS THEN
+        new_id := user_count + 1;
+        user_count := new_id;
+        
+        users[new_id].id := new_id;
+        users[new_id].name := name;
+        users[new_id].email := email;
+        users[new_id].age := age;
+        users[new_id].created_at := '2024-01-04T10:00:00Z';
+        
+        new_user_json := USER_TO_JSON(new_id);
+        result := CREATE_JSON_RESPONSE(TRUE, 'Пользователь успешно создан', new_user_json);
+    ELSE
+        result := CREATE_JSON_RESPONSE(FALSE, 'Достигнуто максимальное количество пользователей', '');
+    END_IF;
+    
+    CREATE_USER_RESPONSE := result;
+END_FUNCTION
+
+// Обработчик обновления пользователя
+FUNCTION UPDATE_USER_RESPONSE : STRING
+VAR_INPUT
+    user_id : INT;
+    name : STRING(50);
+    email : STRING(100);
+    age : INT;
+END_VAR
+VAR
+    result : STRING(2000);
+    user_json : STRING(500);
+END_VAR
+
+    IF user_id >= 1 AND user_id <= user_count THEN
+        users[user_id].name := name;
+        users[user_id].email := email;
+        users[user_id].age := age;
+        
+        user_json := USER_TO_JSON(user_id);
+        result := CREATE_JSON_RESPONSE(TRUE, 'Пользователь успешно обновлен', user_json);
+    ELSE
+        result := CREATE_JSON_RESPONSE(FALSE, 'Пользователь не найден', '');
+    END_IF;
+    
+    UPDATE_USER_RESPONSE := result;
+END_FUNCTION
+
+// Обработчик удаления пользователя
+FUNCTION DELETE_USER_RESPONSE : STRING
+VAR_INPUT
+    user_id : INT;
+END_VAR
+VAR
+    result : STRING(2000);
+    i : INT;
+END_VAR
+
+    IF user_id >= 1 AND user_id <= user_count THEN
+        // Сдвигаем пользователей влево
+        FOR i := user_id TO user_count - 1 DO
+            users[i] := users[i + 1];
+            users[i].id := i;
+        END_FOR;
+        
+        user_count := user_count - 1;
+        result := CREATE_JSON_RESPONSE(TRUE, 'Пользователь успешно удален', '');
+    ELSE
+        result := CREATE_JSON_RESPONSE(FALSE, 'Пользователь не найден', '');
+    END_IF;
+    
+    DELETE_USER_RESPONSE := result;
+END_FUNCTION
+
+// Парсинг HTTP запроса
+FUNCTION PARSE_REQUEST : STRING
+VAR_INPUT
+    request : STRING(1024);
+END_VAR
+VAR
+    method : STRING(10);
+    path : STRING(100);
+    space_pos : INT;
+    second_space_pos : INT;
+    i : INT;
+END_VAR
+
+    // Находим первый пробел (между методом и путем)
+    space_pos := 0;
+    FOR i := 1 TO LEN(request) DO
+        IF MID(request, i, 1) = ' ' THEN
+            space_pos := i;
+            EXIT;
+        END_IF;
+    END_FOR;
+    
+    IF space_pos > 0 THEN
+        method := LEFT(request, space_pos - 1);
+        
+        // Находим второй пробел (между путем и версией HTTP)
+        second_space_pos := 0;
+        FOR i := space_pos + 1 TO LEN(request) DO
+            IF MID(request, i, 1) = ' ' THEN
+                second_space_pos := i;
+                EXIT;
+            END_IF;
+        END_FOR;
+        
+        IF second_space_pos > 0 THEN
+            path := MID(request, space_pos + 1, second_space_pos - space_pos - 1);
+        END_IF;
+    END_IF;
+    
+    PARSE_REQUEST := path;
+END_FUNCTION
+
+// Обработка HTTP запроса
+FUNCTION HANDLE_REQUEST : STRING
+VAR_INPUT
+    request : STRING(1024);
+END_VAR
+VAR
+    path : STRING(100);
+    response : STRING(2000);
+    user_id : INT;
+END_VAR
+
+    path := PARSE_REQUEST(request);
+    
+    // Обработка различных путей
+    IF path = '/' THEN
+        response := HOME_RESPONSE();
+    ELSIF path = '/users' THEN
+        response := GET_USERS_RESPONSE();
+    ELSIF LEFT(path, 7) = '/users/' THEN
+        // Извлекаем ID пользователя
+        user_id := STRING_TO_INT(MID(path, 8, LEN(path) - 7));
+        response := GET_USER_RESPONSE(user_id);
+    ELSE
+        response := CREATE_JSON_RESPONSE(FALSE, 'Страница не найдена', '');
+    END_IF;
+    
+    HANDLE_REQUEST := response;
+END_FUNCTION
+
+// Отправка HTTP ответа
+FUNCTION SEND_HTTP_RESPONSE : BOOL
+VAR_INPUT
+    socket : INT;
+    response : STRING(2000);
+END_VAR
+VAR
+    http_headers : STRING(500);
+    full_response : STRING(2500);
+    success : BOOL := FALSE;
+END_VAR
+
+    http_headers := 'HTTP/1.1 200 OK' + CRLF;
+    http_headers := http_headers + 'Content-Type: application/json' + CRLF;
+    http_headers := http_headers + 'Access-Control-Allow-Origin: *' + CRLF;
+    http_headers := http_headers + 'Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS' + CRLF;
+    http_headers := http_headers + 'Access-Control-Allow-Headers: Content-Type, Authorization' + CRLF;
+    http_headers := http_headers + 'Content-Length: ' + INT_TO_STRING(LEN(response)) + CRLF;
+    http_headers := http_headers + CRLF;
+    
+    full_response := http_headers + response;
+    
+    // Отправляем ответ (в реальной реализации здесь был бы вызов системной функции)
+    success := TRUE; // Заглушка для демонстрации
+    
+    SEND_HTTP_RESPONSE := success;
+END_FUNCTION
+
+// Основной цикл сервера
+PROGRAM MAIN
+    // Инициализация
+    INIT_USERS();
+    
+    // Запуск сервера
+    server_running := TRUE;
+    
+    // Демонстрация работы сервера
+    // В реальной реализации здесь был бы бесконечный цикл обработки запросов
+    
+    // Тестирование различных эндпоинтов
+    response_buffer := HANDLE_REQUEST('GET / HTTP/1.1');
+    // Отправляем ответ
+    SEND_HTTP_RESPONSE(client_socket, response_buffer);
+    
+    response_buffer := HANDLE_REQUEST('GET /users HTTP/1.1');
+    SEND_HTTP_RESPONSE(client_socket, response_buffer);
+    
+    response_buffer := HANDLE_REQUEST('GET /users/1 HTTP/1.1');
+    SEND_HTTP_RESPONSE(client_socket, response_buffer);
+    
+    response_buffer := HANDLE_REQUEST('GET /users/999 HTTP/1.1');
+    SEND_HTTP_RESPONSE(client_socket, response_buffer);
+    
+    // Создание нового пользователя
+    response_buffer := CREATE_USER_RESPONSE('Тест Тестов', 'test@example.com', 25);
+    SEND_HTTP_RESPONSE(client_socket, response_buffer);
+    
+    // Обновление пользователя
+    response_buffer := UPDATE_USER_RESPONSE(1, 'Обновленное Имя', 'updated@example.com', 30);
+    SEND_HTTP_RESPONSE(client_socket, response_buffer);
+    
+    // Удаление пользователя
+    response_buffer := DELETE_USER_RESPONSE(2);
+    SEND_HTTP_RESPONSE(client_socket, response_buffer);
+    
+    server_running := FALSE;
+END_PROGRAM
+
+// Демонстрационная функция
+PROGRAM DEMO_SERVER
+    // Инициализация
+    INIT_USERS();
+    
+    // Вывод информации о сервере
+    // В реальной реализации здесь был бы вывод в консоль
+    // PRINT('🚀 Ladder веб-сервер запущен на порту ' + INT_TO_STRING(SERVER_PORT));
+    // PRINT('📖 API документация доступна по адресу: http://localhost:' + INT_TO_STRING(SERVER_PORT));
+    
+    // Демонстрация ответов
+    // PRINT('');
+    // PRINT('Демонстрация ответов:');
+    // PRINT('');
+    // PRINT('=== GET / ===');
+    response_buffer := HANDLE_REQUEST('GET / HTTP/1.1');
+    // PRINT(response_buffer);
+    
+    // PRINT('');
+    // PRINT('=== GET /users ===');
+    response_buffer := HANDLE_REQUEST('GET /users HTTP/1.1');
+    // PRINT(response_buffer);
+    
+    // PRINT('');
+    // PRINT('=== GET /users/1 ===');
+    response_buffer := HANDLE_REQUEST('GET /users/1 HTTP/1.1');
+    // PRINT(response_buffer);
+    
+    // PRINT('');
+    // PRINT('=== GET /users/999 (несуществующий) ===');
+    response_buffer := HANDLE_REQUEST('GET /users/999 HTTP/1.1');
+    // PRINT(response_buffer);
+    
+    // PRINT('');
+    // PRINT('Демонстрация завершена!');
+END_PROGRAM
+
+// Запуск демо
+DEMO_SERVER();

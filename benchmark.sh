@@ -45,10 +45,22 @@ if ! curl -s http://localhost:8081/ > /dev/null; then
     exit 1
 fi
 
+if ! curl -s http://localhost:8083/ > /dev/null; then
+    echo "ПРЕДУПРЕЖДЕНИЕ: Prolog сервер не отвечает на порту 8083"
+fi
+
 # Запускаем тесты
 test_server "Go сервер" 8080
 test_server "Rust сервер" 8081
 
+# Тестируем Prolog сервер, если он запущен
+if curl -s http://localhost:8083/ > /dev/null; then
+    test_server "Prolog сервер" 8083
+fi
+
 echo "=== Сравнение размеров бинарников ==="
 echo "Go сервер: $(ls -lh ../go_server/go_server | awk '{print $5}')"
 echo "Rust сервер: $(ls -lh target/release/rust-web-server | awk '{print $5}')"
+echo "Prolog сервер: Интерпретируемый"
+echo "Forth сервер: Интерпретируемый"
+echo "Ladder сервер: Интерпретируемый"
